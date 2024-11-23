@@ -1,0 +1,16 @@
+[Unit]
+Description=Quizmo Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=remixonwin
+Environment=PORT=8080
+Environment=RUST_LOG=info
+WorkingDirectory=/home/remixonwin/CascadeProjects/rust-webapp
+ExecStart=/home/remixonwin/CascadeProjects/rust-webapp/target/release/rust-webapp
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

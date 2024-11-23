@@ -1,0 +1,9 @@
+/target
+/debug/
+/release/
+**/*.rs.bk
+*.pem
+.env
+.env.*
+!.env.example
+.DS_Store
