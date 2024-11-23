@@ -24,10 +24,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      hashes: ${{ steps.hash.outputs.hashes }}
-      artifacts: ${{ steps.artifacts.outputs.artifacts }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -42,28 +38,20 @@ jobs:
           mkdir -p artifacts
           cp target/release/rust-webapp artifacts/
 
-      - name: Generate hashes
-        id: hash
-        shell: bash
-        run: |
-          cd artifacts
-          echo "hashes=$(sha256sum rust-webapp | base64 -w0)" >> $GITHUB_OUTPUT
-          echo "artifacts=$(echo rust-webapp | base64 -w0)" >> $GITHUB_OUTPUT
+      - name: Generate provenance
+        uses: slsa-framework/slsa-github-generator/actions/generator@v1.10.0
+        with:
+          artifact-path: artifacts/rust-webapp
+          output-path: artifacts/rust-webapp.intoto.jsonl
 
-      - name: Upload artifact
+      - name: Upload binary and provenance
         uses: actions/upload-artifact@v4
         with:
-          name: rust-webapp-binary
-          path: artifacts/rust-webapp
+          name: rust-webapp-release
+          path: artifacts/*
 
-  provenance:
-    needs: [build]
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.10.0
-    with:
-      base64-subjects: ${{ needs.build.outputs.hashes }}
-      artifact-path: rust-webapp-binary
-      compile-generator: true
+      - name: Upload to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} artifacts/* --clobber
