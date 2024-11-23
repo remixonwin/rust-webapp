@@ -20,10 +20,14 @@ permissions:
   contents: write
   id-token: write
   actions: read
+  packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      digests: ${{ steps.hash.outputs.digests }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -38,10 +42,17 @@ jobs:
           mkdir -p artifacts
           cp target/release/rust-webapp artifacts/
 
-      - name: Upload artifact
+      - name: Generate hashes
+        id: hash
+        shell: bash
+        run: |
+          cd artifacts
+          echo "digests=$(sha256sum rust-webapp | base64 -w0)" >> $GITHUB_OUTPUT
+
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: rust-webapp-binary
+          name: rust-webapp
           path: artifacts/rust-webapp
 
   provenance:
@@ -50,8 +61,8 @@ jobs:
       actions: read
       id-token: write
       contents: write
+      packages: write
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.10.0
     with:
-      base64-subjects: ""
-      artifact-path: rust-webapp-binary
+      base64-subjects: ${{ needs.build.outputs.digests }}
       compile-generator: true
