@@ -39,7 +39,7 @@ jobs:
           cp target/release/rust-webapp artifacts/
 
       - name: Generate provenance
-        uses: slsa-framework/slsa-github-generator/actions/generator@v1.10.0
+        uses: slsa-framework/slsa-github-generator/actions/generic@v1.10.0
         with:
           artifact-path: artifacts/rust-webapp
           output-path: artifacts/rust-webapp.intoto.jsonl
