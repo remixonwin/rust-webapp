@@ -1,6 +1,6 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, middleware};
-use serde::{Deserialize, Serialize};
+use actix_web::{get, middleware, post, web, App, HttpResponse, HttpServer, Responder};
 use log::info;
+use serde::{Deserialize, Serialize};
 use std::env;
 
 #[derive(Serialize, Deserialize)]
@@ -32,13 +32,13 @@ async fn health_check() -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    
+
     // Get port from environment variable or use default
     let port = env::var("PORT").unwrap_or_else(|_| "80".to_string());
     let port: u16 = port.parse().expect("PORT must be a number");
-    
+
     info!("Starting server on port {}", port);
-    
+
     HttpServer::new(|| {
         App::new()
             // Enable logger middleware
