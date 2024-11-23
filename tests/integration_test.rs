@@ -1,5 +1,5 @@
 use rust_webapp::{hello, echo, health_check, Message};
-use actix_web::{test, App, web};
+use actix_web::{test, App};
 
 #[actix_web::test]
 async fn test_integration_hello() {
