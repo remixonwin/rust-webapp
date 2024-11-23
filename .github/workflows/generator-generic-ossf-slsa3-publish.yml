@@ -16,15 +16,16 @@ on:
   release:
     types: [created]
 
+permissions:
+  contents: write
+  id-token: write
+  actions: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
-      actions: read
     outputs:
-      digests: ${{ steps.hash.outputs.digests }}
+      hashes: ${{ steps.hash.outputs.hashes }}
 
     steps:
       - uses: actions/checkout@v4
@@ -40,20 +41,25 @@ jobs:
           mkdir -p artifacts
           cp target/release/rust-webapp artifacts/
 
-      - name: Generate subject for provenance
+      - name: Generate hashes
         id: hash
+        shell: bash
         run: |
-          set -euo pipefail
-          echo "hashes=$(sha256sum artifacts/rust-webapp | base64 -w0)" >> "${GITHUB_OUTPUT}"
+          echo "hashes=$(sha256sum artifacts/rust-webapp | base64 -w0)" >> $GITHUB_OUTPUT
 
-      - name: Upload artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: rust-webapp
           path: artifacts/rust-webapp
 
-      - name: Generate provenance
-        uses: slsa-framework/slsa-github-generator/actions/generator@v1.10.0
-        with:
-          base64-subjects: "${{ steps.hash.outputs.digests }}"
-          upload-assets: true
+  provenance:
+    needs: [build]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.10.0
+    with:
+      base64-subjects: ${{ needs.build.outputs.hashes }}
+      upload-assets: true
