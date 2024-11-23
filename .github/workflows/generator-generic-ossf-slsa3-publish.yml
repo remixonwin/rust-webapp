@@ -38,20 +38,20 @@ jobs:
           mkdir -p artifacts
           cp target/release/rust-webapp artifacts/
 
-      - name: Generate provenance
-        uses: slsa-framework/slsa-github-generator/actions/generic@v1.10.0
-        with:
-          artifact-path: artifacts/rust-webapp
-          output-path: artifacts/rust-webapp.intoto.jsonl
-
-      - name: Upload binary and provenance
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rust-webapp-release
-          path: artifacts/*
+          name: rust-webapp-binary
+          path: artifacts/rust-webapp
 
-      - name: Upload to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload ${{ github.ref_name }} artifacts/* --clobber
+  provenance:
+    needs: [build]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.10.0
+    with:
+      base64-subjects: ""
+      artifact-path: rust-webapp-binary
+      compile-generator: true
