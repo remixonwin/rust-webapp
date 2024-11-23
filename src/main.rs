@@ -1,7 +1,7 @@
 use actix_web::{middleware, App, HttpServer};
 use log::info;
 use std::env;
-use rust_webapp::{hello, echo, health_check};
+use rust_webapp::config;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -19,10 +19,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             // Enable compression
             .wrap(middleware::Compress::default())
-            // Services
-            .service(hello)
-            .service(echo)
-            .service(health_check)
+            // Configure services
+            .configure(config)
     })
     .bind(("0.0.0.0", port))?
     .workers(2) // Number of worker threads
@@ -33,38 +31,76 @@ async fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, App};
+    use actix_web::{test, App, http::header};
     use rust_webapp::Message;
 
     #[actix_web::test]
-    async fn test_hello_endpoint() {
+    async fn test_hello_endpoint_success() {
         let app = test::init_service(
             App::new()
-                .service(hello)
+                .configure(config)
         ).await;
 
         let req = test::TestRequest::get().uri("/").to_request();
         let resp = test::call_service(&app, req).await;
+        
         assert!(resp.status().is_success());
+        let body: Message = test::read_body_json(resp).await;
+        assert_eq!(body.content, "Welcome to Quizmo.me!");
     }
 
     #[actix_web::test]
-    async fn test_health_check() {
+    async fn test_hello_endpoint_content_type() {
         let app = test::init_service(
             App::new()
-                .service(health_check)
+                .configure(config)
+        ).await;
+
+        let req = test::TestRequest::get().uri("/").to_request();
+        let resp = test::call_service(&app, req).await;
+        
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+    }
+
+    #[actix_web::test]
+    async fn test_health_check_success() {
+        let app = test::init_service(
+            App::new()
+                .configure(config)
         ).await;
 
         let req = test::TestRequest::get().uri("/health").to_request();
         let resp = test::call_service(&app, req).await;
+        
         assert!(resp.status().is_success());
+        let body: Message = test::read_body_json(resp).await;
+        assert_eq!(body.content, "Service is healthy");
     }
 
     #[actix_web::test]
-    async fn test_echo_endpoint() {
+    async fn test_health_check_content_type() {
         let app = test::init_service(
             App::new()
-                .service(echo)
+                .configure(config)
+        ).await;
+
+        let req = test::TestRequest::get().uri("/health").to_request();
+        let resp = test::call_service(&app, req).await;
+        
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+    }
+
+    #[actix_web::test]
+    async fn test_echo_endpoint_success() {
+        let app = test::init_service(
+            App::new()
+                .configure(config)
         ).await;
 
         let test_message = Message {
@@ -76,7 +112,90 @@ mod tests {
             .set_json(&test_message)
             .to_request();
         
-        let resp: Message = test::call_and_read_body_json(&app, req).await;
-        assert_eq!(resp.content, test_message.content);
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+        
+        let body: Message = test::read_body_json(resp).await;
+        assert_eq!(body.content, test_message.content);
+    }
+
+    #[actix_web::test]
+    async fn test_echo_endpoint_content_type() {
+        let app = test::init_service(
+            App::new()
+                .configure(config)
+        ).await;
+
+        let test_message = Message {
+            content: String::from("test message")
+        };
+
+        let req = test::TestRequest::post()
+            .uri("/echo")
+            .set_json(&test_message)
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+    }
+
+    #[actix_web::test]
+    async fn test_echo_endpoint_unicode() {
+        let app = test::init_service(
+            App::new()
+                .configure(config)
+        ).await;
+
+        let test_message = Message {
+            content: String::from("Hello, 世界! 🌍")
+        };
+
+        let req = test::TestRequest::post()
+            .uri("/echo")
+            .set_json(&test_message)
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+        
+        let body: Message = test::read_body_json(resp).await;
+        assert_eq!(body.content, "Hello, 世界! 🌍");
+    }
+
+    #[actix_web::test]
+    async fn test_middleware_logger() {
+        let app = test::init_service(
+            App::new()
+                .wrap(middleware::Logger::default())
+                .configure(config)
+        ).await;
+
+        let req = test::TestRequest::get().uri("/").to_request();
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+    }
+
+    #[actix_web::test]
+    async fn test_middleware_compression() {
+        let app = test::init_service(
+            App::new()
+                .wrap(middleware::Compress::default())
+                .configure(config)
+        ).await;
+
+        let req = test::TestRequest::get()
+            .insert_header(("Accept-Encoding", "gzip"))
+            .uri("/")
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+        assert_eq!(
+            resp.headers().get(header::CONTENT_ENCODING).unwrap(),
+            "gzip"
+        );
     }
 }

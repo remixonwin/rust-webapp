@@ -1,4 +1,4 @@
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{get, post, web, HttpResponse, Responder, error::JsonPayloadError};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -25,4 +25,23 @@ pub async fn health_check() -> impl Responder {
     HttpResponse::Ok().json(Message {
         content: String::from("Service is healthy"),
     })
+}
+
+async fn method_not_allowed() -> impl Responder {
+    HttpResponse::MethodNotAllowed().finish()
+}
+
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.app_data(web::JsonConfig::default().error_handler(|err, _| {
+        match err {
+            JsonPayloadError::ContentType => {
+                actix_web::error::ErrorUnsupportedMediaType("Unsupported Media Type")
+            }
+            _ => actix_web::error::ErrorBadRequest("Invalid JSON format")
+        }
+    }))
+    .service(hello)
+    .service(echo)
+    .service(health_check)
+    .default_service(web::route().to(method_not_allowed));
 }
