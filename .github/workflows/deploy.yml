@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
@@ -15,12 +19,9 @@ jobs:
       
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          generate_release_notes: true
           draft: false
           prerelease: false
 
@@ -45,62 +46,44 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       
-      - name: Build Release
+      - name: Build
         run: cargo build --release
       
+      - name: Rename binary
+        shell: bash
+        run: |
+          cd target/release
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv rust-webapp.exe ${{ matrix.asset_name }}
+          else
+            mv rust-webapp ${{ matrix.asset_name }}
+          fi
+      
       - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
+          files: target/release/${{ matrix.asset_name }}
 
-  deploy-prod:
-    needs: [build-release]
+  deploy-production:
+    needs: [create-release, build-release]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
-    environment: production
-    
+    environment:
+      name: production
+      url: https://quizmo.me
+    concurrency: production
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Download release artifact
-        uses: actions/download-artifact@v3
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
         with:
-          name: rust-webapp-linux
-          path: ./target/release/
-      
-      - name: Deploy to production
-        env:
-          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          SERVER_IP: ${{ secrets.PROD_SERVER_IP }}
-          DEPLOY_USER: ${{ secrets.PROD_USER }}
-        run: |
-          # Setup SSH
-          echo "$DEPLOY_KEY" > deploy_key
-          chmod 600 deploy_key
-          mkdir -p ~/.ssh
-          ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
-          
-          # Create required directories
-          ssh -i deploy_key $DEPLOY_USER@$SERVER_IP "mkdir -p /opt/rust-webapp/config"
-          
-          # Copy application files
-          scp -i deploy_key ./target/release/rust-webapp $DEPLOY_USER@$SERVER_IP:/opt/rust-webapp/
-          scp -i deploy_key ./config/app.config.example.toml $DEPLOY_USER@$SERVER_IP:/opt/rust-webapp/config/app.config.toml
-          scp -i deploy_key ./docker/nginx.conf $DEPLOY_USER@$SERVER_IP:/etc/nginx/conf.d/rust-webapp.conf
-          
-          # Update service file and restart
-          scp -i deploy_key ./docker/rust-webapp.service $DEPLOY_USER@$SERVER_IP:/etc/systemd/system/
-          ssh -i deploy_key $DEPLOY_USER@$SERVER_IP "sudo systemctl daemon-reload && sudo systemctl restart rust-webapp && sudo systemctl restart nginx"
-          
-          # Cleanup
-          rm deploy_key
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            cd /opt/rust-webapp
+            git pull
+            docker compose pull
+            docker compose up -d --force-recreate
