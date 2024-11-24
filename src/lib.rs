@@ -1,8 +1,8 @@
-use actix_web::{web, App, HttpResponse, middleware, Error, http::header};
-use actix_web::body::{EitherBody, BoxBody};
-use actix_web::dev::{ServiceFactory, ServiceRequest, ServiceResponse};
-use actix_http::encoding::Encoder;
 use actix_files as fs;
+use actix_http::encoding::Encoder;
+use actix_web::body::{BoxBody, EitherBody};
+use actix_web::dev::{ServiceFactory, ServiceRequest, ServiceResponse};
+use actix_web::{http::header, middleware, web, App, Error, HttpResponse};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -16,29 +16,28 @@ pub struct EchoRequest {
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg
-        .service(
-            web::resource("/")
-                .route(web::get().to(welcome_page))
-                .default_service(web::to(method_not_allowed))
-        )
-        .service(
-            web::resource("/health")
-                .route(web::get().to(health_check))
-                .default_service(web::to(method_not_allowed))
-        )
-        .service(
-            web::resource("/hello")
-                .route(web::get().to(hello))
-                .default_service(web::to(method_not_allowed))
-        )
-        .service(
-            web::resource("/echo")
-                .route(web::post().to(echo))
-                .default_service(web::to(method_not_allowed))
-        )
-        .service(fs::Files::new("/static", "./static").show_files_listing())
-        .default_service(web::to(not_found));
+    cfg.service(
+        web::resource("/")
+            .route(web::get().to(welcome_page))
+            .default_service(web::to(method_not_allowed)),
+    )
+    .service(
+        web::resource("/health")
+            .route(web::get().to(health_check))
+            .default_service(web::to(method_not_allowed)),
+    )
+    .service(
+        web::resource("/hello")
+            .route(web::get().to(hello))
+            .default_service(web::to(method_not_allowed)),
+    )
+    .service(
+        web::resource("/echo")
+            .route(web::post().to(echo))
+            .default_service(web::to(method_not_allowed)),
+    )
+    .service(fs::Files::new("/static", "./static").show_files_listing())
+    .default_service(web::to(not_found));
 }
 
 pub fn create_app() -> App<
@@ -48,7 +47,7 @@ pub fn create_app() -> App<
         Response = ServiceResponse<EitherBody<Encoder<BoxBody>>>,
         Error = Error,
         InitError = (),
-    >
+    >,
 > {
     App::new()
         .wrap(middleware::Compress::default())
@@ -74,9 +73,9 @@ async fn hello() -> HttpResponse {
     })
 }
 
-async fn echo(req: web::Json<Message>) -> HttpResponse {
+async fn echo(msg: web::Json<Message>) -> HttpResponse {
     HttpResponse::Ok().json(Message {
-        content: req.content.clone(),
+        content: msg.content.clone(),
     })
 }
 
