@@ -1,0 +1,16 @@
+[Unit]
+Description=Rust Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=webapp
+Group=webapp
+WorkingDirectory=/opt/rust-webapp
+ExecStart=/opt/rust-webapp/rust-webapp
+Restart=always
+RestartSec=5
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target

@@ -4,17 +4,12 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_run:
-    workflows: ["Rust CI"]
-    types:
-      - completed
-    branches:
-      - master
 
 jobs:
   create-release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
       
@@ -31,7 +26,6 @@ jobs:
 
   build-release:
     needs: create-release
-    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -50,6 +44,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      
       - name: Build Release
         run: cargo build --release
       
@@ -65,24 +65,42 @@ jobs:
 
   deploy-prod:
     needs: [build-release]
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+    environment: production
+    
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Download release artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: rust-webapp-linux
+          path: ./target/release/
       
       - name: Deploy to production
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           SERVER_IP: ${{ secrets.PROD_SERVER_IP }}
+          DEPLOY_USER: ${{ secrets.PROD_USER }}
         run: |
+          # Setup SSH
           echo "$DEPLOY_KEY" > deploy_key
           chmod 600 deploy_key
           mkdir -p ~/.ssh
           ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
           
-          # Copy files to server
-          scp -i deploy_key target/release/rust-webapp ${{ secrets.PROD_USER }}@$SERVER_IP:/opt/rust-webapp/
-          scp -i deploy_key quizmo.service ${{ secrets.PROD_USER }}@$SERVER_IP:/etc/systemd/system/
+          # Create required directories
+          ssh -i deploy_key $DEPLOY_USER@$SERVER_IP "mkdir -p /opt/rust-webapp/config"
           
-          # Restart service
-          ssh -i deploy_key ${{ secrets.PROD_USER }}@$SERVER_IP "sudo systemctl daemon-reload && sudo systemctl restart quizmo"
+          # Copy application files
+          scp -i deploy_key ./target/release/rust-webapp $DEPLOY_USER@$SERVER_IP:/opt/rust-webapp/
+          scp -i deploy_key ./config/app.config.example.toml $DEPLOY_USER@$SERVER_IP:/opt/rust-webapp/config/app.config.toml
+          scp -i deploy_key ./docker/nginx.conf $DEPLOY_USER@$SERVER_IP:/etc/nginx/conf.d/rust-webapp.conf
+          
+          # Update service file and restart
+          scp -i deploy_key ./docker/rust-webapp.service $DEPLOY_USER@$SERVER_IP:/etc/systemd/system/
+          ssh -i deploy_key $DEPLOY_USER@$SERVER_IP "sudo systemctl daemon-reload && sudo systemctl restart rust-webapp && sudo systemctl restart nginx"
+          
+          # Cleanup
+          rm deploy_key
