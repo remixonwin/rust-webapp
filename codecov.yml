@@ -1,0 +1,41 @@
+coverage:
+  status:
+    project:
+      default:
+        # basic
+        target: 70%
+        threshold: 1%
+        base: auto
+        # advanced
+        branches:
+          - master
+        if_ci_failed: error
+        informational: false
+        only_pulls: false
+
+    patch:
+      default:
+        # basic
+        target: 70%
+        threshold: 1%
+        base: auto
+        # advanced
+        branches:
+          - master
+        if_ci_failed: error
+        informational: false
+        only_pulls: false
+
+ignore:
+  - "tests/**/*"  # ignore test files
+  - "examples/**/*"  # ignore example files
+  - "scripts/**/*"  # ignore script files
+  - "tools/**/*"  # ignore tool files
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+  show_carryforward_flags: true
