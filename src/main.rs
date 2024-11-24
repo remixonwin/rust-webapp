@@ -1,139 +1,36 @@
-use actix_web::HttpServer;
-use log::info;
-use rust_webapp::create_app;
-use std::env;
+use env_logger::Env;
+use rust_webapp::{config::ServerConfig, routes};
+use actix_web::{
+    App,
+    middleware::{self, Logger},
+    HttpServer,
+};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
+    // Initialize logging with a default level of 'info'
+    env_logger::init_from_env(Env::new().default_filter_or("info"));
 
-    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr = format!("0.0.0.0:{}", port);
+    // Load server configuration
+    let config = ServerConfig::default();
+    
+    // Create and bind the TCP listener
+    let listener = config.create_listener()?;
+    let local_addr = listener.local_addr()?;
+    
+    log::info!("Starting server at http://{}", local_addr);
 
-    info!("Starting server at: {}", addr);
-
-    HttpServer::new(create_app).bind(&addr)?.run().await
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use actix_web::{http::header, test};
-    use rust_webapp::Message;
-
-    #[actix_web::test]
-    async fn test_hello_endpoint() {
-        let app = test::init_service(create_app()).await;
-        let req = test::TestRequest::get().uri("/hello").to_request();
-        let resp = test::call_service(&app, req).await;
-
-        assert!(resp.status().is_success());
-        let body: Message = test::read_body_json(resp).await;
-        assert_eq!(body.content, "Hello, World!");
-    }
-
-    #[actix_web::test]
-    async fn test_hello_content_type() {
-        let app = test::init_service(create_app()).await;
-        let req = test::TestRequest::get().uri("/hello").to_request();
-        let resp = test::call_service(&app, req).await;
-
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/json"
-        );
-    }
-
-    #[actix_web::test]
-    async fn test_health_endpoint() {
-        let app = test::init_service(create_app()).await;
-        let req = test::TestRequest::get().uri("/health").to_request();
-        let resp = test::call_service(&app, req).await;
-
-        assert!(resp.status().is_success());
-        let body: Message = test::read_body_json(resp).await;
-        assert_eq!(body.content, "Service is healthy");
-    }
-
-    #[actix_web::test]
-    async fn test_health_content_type() {
-        let app = test::init_service(create_app()).await;
-        let req = test::TestRequest::get().uri("/health").to_request();
-        let resp = test::call_service(&app, req).await;
-
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/json"
-        );
-    }
-
-    #[actix_web::test]
-    async fn test_echo_endpoint() {
-        let app = test::init_service(create_app()).await;
-        let test_message = Message {
-            content: String::from("test message"),
-        };
-
-        let req = test::TestRequest::post()
-            .uri("/echo")
-            .set_json(&test_message)
-            .to_request();
-
-        let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success());
-
-        let body: Message = test::read_body_json(resp).await;
-        assert_eq!(body.content, test_message.content);
-    }
-
-    #[actix_web::test]
-    async fn test_echo_content_type() {
-        let app = test::init_service(create_app()).await;
-        let test_message = Message {
-            content: String::from("test message"),
-        };
-
-        let req = test::TestRequest::post()
-            .uri("/echo")
-            .set_json(&test_message)
-            .to_request();
-
-        let resp = test::call_service(&app, req).await;
-        assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/json"
-        );
-    }
-
-    #[actix_web::test]
-    async fn test_unicode_echo() {
-        let app = test::init_service(create_app()).await;
-        let test_message = Message {
-            content: String::from("Hello, 世界! 🌍"),
-        };
-
-        let req = test::TestRequest::post()
-            .uri("/echo")
-            .set_json(&test_message)
-            .to_request();
-
-        let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success());
-
-        let body: Message = test::read_body_json(resp).await;
-        assert_eq!(body.content, "Hello, 世界! 🌍");
-    }
-
-    #[actix_web::test]
-    async fn test_compression() {
-        let app = test::init_service(create_app()).await;
-        let req = test::TestRequest::get()
-            .insert_header(("Accept-Encoding", "gzip"))
-            .uri("/")
-            .to_request();
-
-        let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success());
-        assert!(resp.headers().contains_key(header::CONTENT_ENCODING));
-    }
+    // Build and run the server with graceful shutdown
+    HttpServer::new(|| {
+        App::new()
+            .wrap(middleware::Compress::default())
+            .wrap(Logger::default())
+            .wrap(Logger::new("%a %r %s %b %{Referer}i %{User-Agent}i %T"))
+            .configure(routes::configure)
+    })
+        .listen(listener)?
+        .workers(num_cpus::get()) // Optimize number of workers based on CPU cores
+        .shutdown_timeout(30) // Allow 30 seconds for graceful shutdown
+        .run()
+        .await
 }

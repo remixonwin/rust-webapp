@@ -1,0 +1,31 @@
+# Application Configuration Template
+# Copy this file to app.config.toml and modify as needed
+
+[server]
+host = "127.0.0.1"
+port = 8080
+workers = 4  # Number of worker threads
+shutdown_timeout = 30  # Shutdown timeout in seconds
+
+[logging]
+level = "info"  # Options: error, warn, info, debug, trace
+format = "%a %r %s %b %{Referer}i %{User-Agent}i %T"
+
+[security]
+# CORS settings
+allowed_origins = ["http://localhost:8080"]
+allowed_methods = ["GET", "POST"]
+max_age = 3600
+
+[database]
+# Add your database configuration here if needed
+# url = "postgres://user:password@localhost/dbname"
+
+[cache]
+enabled = true
+max_size = 100  # Maximum number of items in cache
+ttl = 3600  # Time to live in seconds
+
+[static_files]
+dir = "static"
+cache_control = "public, max-age=31536000"
