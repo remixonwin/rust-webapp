@@ -1,0 +1,28 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Build artifacts
+target/
+**/target/
+
+# Development files
+.env
+.env.*
+*.log
+
+# Documentation
+docs/
+README.md
+
+# IDE specific
+.vscode/
+.idea/
+
+# Test files
+tests/
+
+# Other
+*.md
+!README.md
