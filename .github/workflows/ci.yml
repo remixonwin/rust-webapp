@@ -42,22 +42,28 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check formatting
-        run: cargo fmt -- --check
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
 
       - name: Clippy
-        run: cargo clippy -- -D warnings
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
 
       - name: Run tests
-        run: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features --verbose
 
   build:
     name: Build
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v3
 
@@ -71,29 +77,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
+      - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v4
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Save Docker image name
+      - name: Save Docker image info
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
@@ -104,12 +109,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-    outputs:
-      release_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -146,28 +145,30 @@ jobs:
     needs: [build, release]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    environment: 
+    environment:
       name: production
       url: https://quizmo.me
     concurrency: production
     steps:
+      - uses: actions/checkout@v3
+
       - name: Deploy to server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: GITHUB_TOKEN,REGISTRY,IMAGE_NAME,GITHUB_REF
           script: |
-            # Update application code
-            cd ~/CascadeProjects/rust-webapp
-            git fetch --all
-            git checkout ${GITHUB_REF#refs/tags/}
+            # Login to GitHub Container Registry
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-            # Pull latest Docker image
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker pull ${{ env.FULL_IMAGE_NAME }}
+            # Pull latest image
+            IMAGE_TAG=${GITHUB_REF#refs/tags/}
+            FULL_IMAGE_NAME=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$IMAGE_TAG
+            docker pull $FULL_IMAGE_NAME
 
-            # Create backup of current container
+            # Backup current container
             TIMESTAMP=$(date +%Y%m%d_%H%M%S)
             if docker ps -a | grep -q rust-webapp; then
               docker rename rust-webapp rust-webapp_backup_$TIMESTAMP
@@ -180,9 +181,10 @@ jobs:
               -p 8080:8080 \
               -v /opt/rust-webapp/config:/app/config \
               -e RUST_LOG=info \
-              ${{ env.FULL_IMAGE_NAME }}
+              $FULL_IMAGE_NAME
 
-            # Verify new container is running
+            # Verify new container
+            sleep 5
             if ! docker ps | grep -q rust-webapp; then
               echo "New container failed to start. Rolling back..."
               docker stop rust-webapp || true
@@ -192,23 +194,20 @@ jobs:
               exit 1
             fi
 
-            # Clean up old container after successful deployment
-            docker rm rust-webapp_backup_$TIMESTAMP || true
-
-            # Update Nginx configuration if needed
-            if [ -f "docker/nginx.conf" ]; then
-              sudo cp docker/nginx.conf /etc/nginx/conf.d/rust-webapp.conf
-              sudo nginx -t && sudo systemctl reload nginx
-            fi
-
-            # Verify application health
+            # Health check
             for i in {1..12}; do
               if curl -s http://localhost:8080/health | grep -q "healthy"; then
                 echo "Application is healthy"
+                docker rm rust-webapp_backup_$TIMESTAMP || true
                 exit 0
               fi
               echo "Waiting for application to become healthy..."
               sleep 5
             done
-            echo "Application failed health check"
+
+            echo "Application failed health check. Rolling back..."
+            docker stop rust-webapp
+            docker rm rust-webapp
+            docker rename rust-webapp_backup_$TIMESTAMP rust-webapp
+            docker start rust-webapp
             exit 1
