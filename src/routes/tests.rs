@@ -2,12 +2,13 @@
 // This keeps the test organization cleaner and prevents duplication
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::routes::configure;
+    use crate::Message;
     use actix_web::{http::StatusCode, test, App};
 
     #[actix_web::test]
     async fn test_routes() {
-        let app = test::init_service(App::new().configure(configure_routes)).await;
+        let app = test::init_service(App::new().configure(configure)).await;
 
         // Test health check route
         let req = test::TestRequest::get().uri("/health").to_request();
@@ -25,9 +26,12 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         // Test echo route
+        let test_message = Message {
+            content: "test".to_string(),
+        };
         let req = test::TestRequest::post()
             .uri("/echo")
-            .set_json(json!({"message": "test"}))
+            .set_json(&test_message)
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);

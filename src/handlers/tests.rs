@@ -2,14 +2,14 @@
 // This keeps the test organization cleaner and prevents duplication
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::handlers::{echo, hello, method_not_allowed};
+    use crate::Message;
     use actix_web::{
         http::StatusCode,
         test,
-        web::{self, Json},
+        web,
         App,
     };
-    use serde_json::json;
 
     #[actix_web::test]
     async fn test_hello() {
@@ -23,8 +23,8 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let body = test::read_body(resp).await;
-        assert_eq!(body, "Hello, World!");
+        let result: Message = test::read_body_json(resp).await;
+        assert_eq!(result.content, "Hello, World!");
     }
 
     #[actix_web::test]
@@ -34,20 +34,20 @@ mod tests {
         )
         .await;
 
-        let message = json!({
-            "message": "test message"
-        });
+        let test_message = Message {
+            content: "test message".to_string(),
+        };
 
         let req = test::TestRequest::post()
             .uri("/echo")
-            .set_json(&message)
+            .set_json(&test_message)
             .to_request();
 
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let result: Message = test::read_body_json(resp).await;
-        assert_eq!(result.message, "test message");
+        assert_eq!(result.content, "test message");
     }
 
     #[actix_web::test]
