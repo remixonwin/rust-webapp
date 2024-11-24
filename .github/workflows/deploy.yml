@@ -1,0 +1,88 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_run:
+    workflows: ["Rust CI"]
+    types:
+      - completed
+    branches:
+      - master
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  build-release:
+    needs: create-release
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: rust-webapp
+            asset_name: rust-webapp-linux
+          - os: windows-latest
+            artifact_name: rust-webapp.exe
+            asset_name: rust-webapp-windows.exe
+          - os: macos-latest
+            artifact_name: rust-webapp
+            asset_name: rust-webapp-macos
+    
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Release
+        run: cargo build --release
+      
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./target/release/${{ matrix.artifact_name }}
+          asset_name: ${{ matrix.asset_name }}
+          asset_content_type: application/octet-stream
+
+  deploy-prod:
+    needs: [build-release]
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to production
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SERVER_IP: ${{ secrets.PROD_SERVER_IP }}
+        run: |
+          echo "$DEPLOY_KEY" > deploy_key
+          chmod 600 deploy_key
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+          
+          # Copy files to server
+          scp -i deploy_key target/release/rust-webapp ${{ secrets.PROD_USER }}@$SERVER_IP:/opt/rust-webapp/
+          scp -i deploy_key quizmo.service ${{ secrets.PROD_USER }}@$SERVER_IP:/etc/systemd/system/
+          
+          # Restart service
+          ssh -i deploy_key ${{ secrets.PROD_USER }}@$SERVER_IP "sudo systemctl daemon-reload && sudo systemctl restart quizmo"
