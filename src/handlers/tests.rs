@@ -4,12 +4,10 @@
 mod tests {
     use crate::handlers::{echo, hello, method_not_allowed};
     use crate::Message;
-    use actix_web::{
-        http::StatusCode,
-        test,
-        web,
-        App,
-    };
+    use actix_web::http::StatusCode;
+    use actix_web::test;
+    use actix_web::web;
+    use actix_web::App;
 
     #[actix_web::test]
     async fn test_hello() {
