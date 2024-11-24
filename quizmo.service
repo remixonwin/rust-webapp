@@ -1,14 +1,14 @@
 [Unit]
-Description=Quizmo Web Application
+Description=Rust Web Application
 After=network.target
 
 [Service]
 Type=simple
-User=remixonwin
-Environment=PORT=8080
+User=deploy
+Environment=PORT=3000
 Environment=RUST_LOG=info
-WorkingDirectory=/home/remixonwin/CascadeProjects/rust-webapp
-ExecStart=/home/remixonwin/CascadeProjects/rust-webapp/target/release/rust-webapp
+WorkingDirectory=/opt/rust-webapp
+ExecStart=/opt/rust-webapp/rust-webapp
 Restart=always
 RestartSec=1
 
