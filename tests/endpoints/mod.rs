@@ -1,4 +1,4 @@
+mod echo;
 mod health;
 mod hello;
-mod echo;
 mod welcome;

@@ -25,9 +25,7 @@ async fn test_echo() {
 #[actix_web::test]
 async fn test_echo_method_not_allowed() {
     let app = init_test_service().await;
-    let req = test::TestRequest::get()
-        .uri("/echo")
-        .to_request();
+    let req = test::TestRequest::get().uri("/echo").to_request();
     let resp = test::call_service(&app, req).await;
 
     assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);

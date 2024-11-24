@@ -6,9 +6,7 @@ use crate::common::init_test_service;
 #[actix_web::test]
 async fn test_hello() {
     let app = init_test_service().await;
-    let req = test::TestRequest::get()
-        .uri("/hello")
-        .to_request();
+    let req = test::TestRequest::get().uri("/hello").to_request();
     let resp = test::call_service(&app, req).await;
 
     assert_eq!(resp.status(), StatusCode::OK);
@@ -20,9 +18,7 @@ async fn test_hello() {
 #[actix_web::test]
 async fn test_hello_method_not_allowed() {
     let app = init_test_service().await;
-    let req = test::TestRequest::post()
-        .uri("/hello")
-        .to_request();
+    let req = test::TestRequest::post().uri("/hello").to_request();
     let resp = test::call_service(&app, req).await;
 
     assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);

@@ -1,10 +1,9 @@
+use actix_web::{
+    middleware::{self, Logger},
+    App, HttpServer,
+};
 use env_logger::Env;
 use rust_webapp::{config::ServerConfig, routes};
-use actix_web::{
-    App,
-    middleware::{self, Logger},
-    HttpServer,
-};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -13,11 +12,11 @@ async fn main() -> std::io::Result<()> {
 
     // Load server configuration
     let config = ServerConfig::default();
-    
+
     // Create and bind the TCP listener
     let listener = config.create_listener()?;
     let local_addr = listener.local_addr()?;
-    
+
     log::info!("Starting server at http://{}", local_addr);
 
     // Build and run the server with graceful shutdown
@@ -28,9 +27,9 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::new("%a %r %s %b %{Referer}i %{User-Agent}i %T"))
             .configure(routes::configure)
     })
-        .listen(listener)?
-        .workers(num_cpus::get()) // Optimize number of workers based on CPU cores
-        .shutdown_timeout(30) // Allow 30 seconds for graceful shutdown
-        .run()
-        .await
+    .listen(listener)?
+    .workers(num_cpus::get()) // Optimize number of workers based on CPU cores
+    .shutdown_timeout(30) // Allow 30 seconds for graceful shutdown
+    .run()
+    .await
 }
