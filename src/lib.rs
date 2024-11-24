@@ -1,47 +1,91 @@
-use actix_web::{get, post, web, HttpResponse, Responder, error::JsonPayloadError};
+use actix_web::{web, App, HttpResponse, middleware, Error, http::header};
+use actix_web::body::{EitherBody, BoxBody};
+use actix_web::dev::{ServiceFactory, ServiceRequest, ServiceResponse};
+use actix_http::encoding::Encoder;
+use actix_files as fs;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
     pub content: String,
 }
 
-#[get("/")]
-pub async fn hello() -> impl Responder {
-    HttpResponse::Ok().json(Message {
-        content: String::from("Welcome to Quizmo.me!"),
-    })
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EchoRequest {
+    pub message: String,
 }
 
-#[post("/echo")]
-pub async fn echo(msg: web::Json<Message>) -> impl Responder {
-    HttpResponse::Ok().json(Message {
-        content: msg.content.clone(),
-    })
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg
+        .service(
+            web::resource("/")
+                .route(web::get().to(welcome_page))
+                .default_service(web::to(method_not_allowed))
+        )
+        .service(
+            web::resource("/health")
+                .route(web::get().to(health_check))
+                .default_service(web::to(method_not_allowed))
+        )
+        .service(
+            web::resource("/hello")
+                .route(web::get().to(hello))
+                .default_service(web::to(method_not_allowed))
+        )
+        .service(
+            web::resource("/echo")
+                .route(web::post().to(echo))
+                .default_service(web::to(method_not_allowed))
+        )
+        .service(fs::Files::new("/static", "./static").show_files_listing())
+        .default_service(web::to(not_found));
 }
 
-#[get("/health")]
-pub async fn health_check() -> impl Responder {
+pub fn create_app() -> App<
+    impl ServiceFactory<
+        ServiceRequest,
+        Config = (),
+        Response = ServiceResponse<EitherBody<Encoder<BoxBody>>>,
+        Error = Error,
+        InitError = (),
+    >
+> {
+    App::new()
+        .wrap(middleware::Compress::default())
+        .configure(config)
+}
+
+async fn welcome_page() -> Result<HttpResponse, Error> {
+    let content = std::fs::read_to_string("./static/index.html")?;
+    Ok(HttpResponse::Ok()
+        .insert_header((header::CONTENT_TYPE, "text/html"))
+        .body(content))
+}
+
+async fn health_check() -> HttpResponse {
     HttpResponse::Ok().json(Message {
         content: String::from("Service is healthy"),
     })
 }
 
-async fn method_not_allowed() -> impl Responder {
-    HttpResponse::MethodNotAllowed().finish()
+async fn hello() -> HttpResponse {
+    HttpResponse::Ok().json(Message {
+        content: String::from("Hello, World!"),
+    })
 }
 
-pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.app_data(web::JsonConfig::default().error_handler(|err, _| {
-        match err {
-            JsonPayloadError::ContentType => {
-                actix_web::error::ErrorUnsupportedMediaType("Unsupported Media Type")
-            }
-            _ => actix_web::error::ErrorBadRequest("Invalid JSON format")
-        }
-    }))
-    .service(hello)
-    .service(echo)
-    .service(health_check)
-    .default_service(web::route().to(method_not_allowed));
+async fn echo(req: web::Json<Message>) -> HttpResponse {
+    HttpResponse::Ok().json(Message {
+        content: req.content.clone(),
+    })
+}
+
+async fn not_found() -> HttpResponse {
+    HttpResponse::NotFound().finish()
+}
+
+async fn method_not_allowed() -> HttpResponse {
+    HttpResponse::MethodNotAllowed()
+        .insert_header(("Allow", "GET"))
+        .finish()
 }
