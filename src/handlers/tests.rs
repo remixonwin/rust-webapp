@@ -14,8 +14,9 @@ mod tests {
     #[actix_web::test]
     async fn test_hello() {
         let app = test::init_service(
-            App::new().service(web::resource("/hello").route(web::get().to(hello)))
-        ).await;
+            App::new().service(web::resource("/hello").route(web::get().to(hello))),
+        )
+        .await;
 
         let req = test::TestRequest::get().uri("/hello").to_request();
         let resp = test::call_service(&app, req).await;
@@ -29,8 +30,9 @@ mod tests {
     #[actix_web::test]
     async fn test_echo() {
         let app = test::init_service(
-            App::new().service(web::resource("/echo").route(web::post().to(echo)))
-        ).await;
+            App::new().service(web::resource("/echo").route(web::post().to(echo))),
+        )
+        .await;
 
         let message = json!({
             "message": "test message"
@@ -50,9 +52,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_method_not_allowed() {
-        let app = test::init_service(
-            App::new().default_service(web::to(method_not_allowed))
-        ).await;
+        let app = test::init_service(App::new().default_service(web::to(method_not_allowed))).await;
 
         let req = test::TestRequest::post().uri("/invalid").to_request();
         let resp = test::call_service(&app, req).await;

@@ -11,8 +11,8 @@ pub use health::health_check;
 pub use hello::hello;
 pub use welcome::welcome_page;
 
-use actix_web::{web, HttpResponse, Responder};
 use crate::models::Message;
+use actix_web::{web, HttpResponse, Responder};
 
 #[cfg(test)]
 mod tests;
