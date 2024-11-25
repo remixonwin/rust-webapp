@@ -1,12 +1,43 @@
-version: '3'
 services:
   webapp:
     image: rust-webapp
     container_name: rust-webapp-container
     ports:
-      - "3000:3000"
+      - "8081:3000"
     environment:
-      - RUST_LOG=info
+      - RUST_LOG=debug
       - PORT=3000
       - HOST=0.0.0.0
+      - DATABASE_URL=postgres://webapp:webapp@postgres:5432/webapp
     restart: unless-stopped
+    networks:
+      - webapp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:15
+    container_name: webapp-postgres
+    environment:
+      - POSTGRES_USER=webapp
+      - POSTGRES_PASSWORD=webapp
+      - POSTGRES_DB=webapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - webapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+
+networks:
+  webapp-network:
+    driver: bridge

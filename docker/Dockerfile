@@ -1,43 +1,50 @@
 # Build stage
-FROM rust:1.73-slim-bookworm as builder
+FROM rust:1.75-slim-bookworm AS builder
 
 WORKDIR /app
 
-# Copy only files needed for dependency resolution first
-COPY Cargo.toml Cargo.lock ./
+# Install PostgreSQL client library for building
+RUN apt-get update && \
+    apt-get install -y \
+    pkg-config \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create a dummy main.rs to build dependencies
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
-
-# Now copy the real source code
+# Copy the entire project
 COPY . .
 
-# Build the application
-RUN cargo build --release
+# Build the application with debug symbols
+RUN RUSTFLAGS="-g" cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+# Install essential dependencies and debugging tools
+RUN apt-get update && \
+    apt-get install -y \
     ca-certificates \
+    procps \
+    strace \
+    libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the binary and config from builder
+# Copy the binary and config
 COPY --from=builder /app/target/release/rust-webapp /app/
 COPY --from=builder /app/config /app/config
 
+# Ensure proper permissions
+RUN chmod +x /app/rust-webapp
+
 # Set environment variables
-ENV RUST_LOG=info
-ENV APP_ENV=production
+ENV RUST_LOG=debug
+ENV RUST_BACKTRACE=full
+ENV PORT=3000
+ENV HOST=0.0.0.0
 
-# Expose port
-EXPOSE 8080
+# Run as root to ensure we have permission to bind to ports
+USER root
 
-# Run the binary
-CMD ["./rust-webapp"]
+# Run the binary with strace to see what's happening
+CMD ["strace", "-f", "-e", "trace=network,process", "./rust-webapp"]

@@ -1,22 +1,52 @@
 # Cleanup script for rust-webapp project
 
-# Remove installation files
-Remove-Item -Path "DockerDesktopInstaller.exe" -Force
-Remove-Item -Path "rustup-init.exe" -Force
-Remove-Item -Path "rustup-init.sh" -Force
+$scriptPath = $PSScriptRoot
+Import-Module "$scriptPath\modules\Config.psm1"
 
-# Remove quizmo-related files
-Remove-Item -Path "quizmo-web.service" -Force
-Remove-Item -Path "quizmo.me" -Force
-Remove-Item -Path "quizmo.service" -Force
+# Get configuration
+$config = Get-ProjectConfig
+$cleanupConfig = $config.cleanup
 
-# Remove duplicate shell scripts (keeping PowerShell versions)
-Remove-Item -Path "setup_local_deploy.sh" -Force
-Remove-Item -Path "deploy.sh" -Force
-Remove-Item -Path "setup_server.sh" -Force
+Write-Host "Cleaning up build artifacts and temporary files..."
 
-# Remove sensitive files
-Remove-Item -Path "github_deploy_key" -Force
-Remove-Item -Path "github_deploy_key.pub" -Force
+# Clean Rust build artifacts
+if (Test-CommandAvailable "cargo") {
+    cargo clean
+    Write-Host " Cleaned Rust build artifacts"
+}
 
-Write-Host "Cleanup completed successfully!"
+# Clean frontend build artifacts
+if ($cleanupConfig.clean_frontend) {
+    $frontendPaths = @("frontend/node_modules", "frontend/dist")
+    foreach ($path in $frontendPaths) {
+        if (Test-Path $path) {
+            Remove-Item -Path $path -Recurse -Force
+            Write-Host " Cleaned $path"
+        }
+    }
+}
+
+# Clean Docker cache
+if ($cleanupConfig.clean_docker_cache -and (Test-CommandAvailable "docker")) {
+    docker builder prune -f
+    Write-Host " Cleaned Docker build cache"
+}
+
+# Remove temporary files but preserve specified patterns
+$cleanPatterns = $cleanupConfig.clean_patterns
+$preservePatterns = $cleanupConfig.preserve_patterns
+
+foreach ($pattern in $cleanPatterns) {
+    $filesToRemove = Get-ChildItem -Path . -Include $pattern -Recurse |
+        Where-Object {
+            $file = $_
+            -not ($preservePatterns | Where-Object { $file.Name -like $_ })
+        }
+    
+    if ($filesToRemove) {
+        $filesToRemove | Remove-Item -Force
+        Write-Host " Removed temporary files matching: $pattern"
+    }
+}
+
+Write-Host "`nCleanup complete!"

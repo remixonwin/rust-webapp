@@ -1,35 +1,67 @@
-use actix_web::{
-    middleware::{self, Logger},
-    App, HttpServer,
-};
-use env_logger::Env;
-use rust_webapp::{config::ServerConfig, routes};
+use actix_web::{web, App, HttpServer, HttpResponse, get};
+use actix_cors::Cors;
+use dotenv::dotenv;
+use actix_web::middleware::Logger;
+use serde_json::json;
+
+mod auth;
+mod db;
+mod models;
+mod error;
+
+pub use crate::app_state::AppState;
+mod app_state;
+
+// Hello endpoint for testing
+#[get("/hello")]
+async fn hello() -> HttpResponse {
+    HttpResponse::Ok().json(json!({
+        "message": "Hello from Rust backend!"
+    }))
+}
+
+// Default handler to return 404 for unmatched routes
+async fn default_handler() -> HttpResponse {
+    HttpResponse::NotFound()
+        .content_type("application/json")
+        .json(serde_json::json!({
+            "error": "Not Found",
+            "message": "The requested endpoint does not exist"
+        }))
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Initialize logging with a default level of 'info'
-    env_logger::init_from_env(Env::new().default_filter_or("info"));
+    dotenv().ok();
+    env_logger::init();
 
-    // Load server configuration
-    let config = ServerConfig::default();
+    let pool = db::create_pool()
+        .await
+        .expect("Failed to create database pool");
 
-    // Create and bind the TCP listener
-    let listener = config.create_listener()?;
-    let local_addr = listener.local_addr()?;
+    let state = web::Data::new(AppState::new(pool));
 
-    log::info!("Starting server at http://{}", local_addr);
+    HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header()
+            .supports_credentials();
 
-    // Build and run the server with graceful shutdown
-    HttpServer::new(|| {
+        println!("Configuring server with CORS and routes");
+
         App::new()
-            .wrap(middleware::Compress::default())
             .wrap(Logger::default())
-            .wrap(Logger::new("%a %r %s %b %{Referer}i %{User-Agent}i %T"))
-            .configure(routes::configure)
+            .wrap(cors)
+            .app_data(state.clone())
+            .service(
+                web::scope("/api")
+                    .configure(auth::handlers::configure)
+                    .service(hello)
+            )
+            .default_service(web::route().to(default_handler))
     })
-    .listen(listener)?
-    .workers(num_cpus::get()) // Optimize number of workers based on CPU cores
-    .shutdown_timeout(30) // Allow 30 seconds for graceful shutdown
+    .bind("127.0.0.1:8081")?
     .run()
     .await
 }

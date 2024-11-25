@@ -7,7 +7,7 @@ This document describes the REST API endpoints available in the Rust Web Applica
 ## Base URL
 
 ```
-http://localhost:8080
+http://localhost:9000
 ```
 
 ## Endpoints
@@ -87,6 +87,61 @@ Echoes back the received message.
 }
 ```
 
+### Authentication
+
+#### Register
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+    "email": "string",
+    "password": "string"
+}
+```
+
+Returns:
+```json
+{
+    "message": "Registration successful",
+    "token": "jwt-token"
+}
+```
+
+#### Login
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+    "email": "string",
+    "password": "string"
+}
+```
+
+Returns:
+```json
+{
+    "message": "Login successful",
+    "token": "jwt-token"
+}
+```
+
+### Protected Endpoints
+
+#### Hello (Protected)
+```http
+GET /api/hello
+Authorization: Bearer <your-jwt-token>
+```
+
+Returns:
+```json
+{
+    "message": "Hello from the protected API!"
+}
+```
+
 ## Error Responses
 
 ### Method Not Allowed
@@ -105,6 +160,27 @@ When accessing a non-existent endpoint.
 **Response**
 - Status: 404 Not Found
 
+### Authentication Errors
+```json
+{
+    "message": "No authorization token provided"
+}
+```
+or
+```json
+{
+    "message": "Invalid token"
+}
+```
+
+### Rate Limiting
+```json
+{
+    "message": "Too many failed attempts. Please try again later.",
+    "retry_after_seconds": 900
+}
+```
+
 ## Response Headers
 
 All responses include the following headers:
@@ -118,7 +194,11 @@ Currently, there are no rate limits implemented.
 
 ## Authentication
 
-Currently, there is no authentication required for any endpoints.
+All protected endpoints require a JWT token in the Authorization header:
+
+```
+Authorization: Bearer <your-jwt-token>
+```
 
 ## Future Endpoints
 
@@ -134,13 +214,13 @@ You can test the API using curl:
 
 ```bash
 # Health check
-curl http://localhost:8080/health
+curl http://localhost:9000/health
 
 # Hello world
-curl http://localhost:8080/hello
+curl http://localhost:9000/hello
 
 # Echo
-curl -X POST http://localhost:8080/echo \
+curl -X POST http://localhost:9000/echo \
     -H "Content-Type: application/json" \
     -d '{"content":"test message"}'
 ```

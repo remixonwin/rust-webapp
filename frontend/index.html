@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust WebApp</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        .auth-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin: 0 0 30px 0;
+            font-size: 24px;
+        }
+        .auth-form input {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .auth-form button {
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .auth-form button:hover {
+            background-color: #0056b3;
+        }
+        .auth-toggle {
+            text-align: center;
+            margin-top: 15px;
+            color: #666;
+        }
+        .auth-toggle a {
+            color: #007bff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .auth-toggle a:hover {
+            text-decoration: underline;
+        }
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .user-info {
+            text-align: center;
+            display: none;
+        }
+        .user-info h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="auth-container">
+        <div id="auth-section">
+            <div id="login-form" class="auth-form">
+                <h1>Welcome Back</h1>
+                <input type="email" id="login-email" placeholder="Email" required>
+                <input type="password" id="login-password" placeholder="Password" required>
+                <button id="login-button">Login</button>
+                <div class="auth-toggle">
+                    Don't have an account? <a id="toggle-register">Register</a>
+                </div>
+                <div id="login-error" class="error-message"></div>
+            </div>
+
+            <div id="register-form" class="auth-form" style="display: none;">
+                <h1>Create Account</h1>
+                <input type="email" id="register-email" placeholder="Email" required>
+                <input type="password" id="register-password" placeholder="Password" required>
+                <button id="register-button">Register</button>
+                <div class="auth-toggle">
+                    Already have an account? <a id="toggle-login">Login</a>
+                </div>
+                <div id="register-error" class="error-message"></div>
+            </div>
+
+            <div id="user-info" class="user-info" style="display: none;">
+                <h2>Welcome, <span id="email-display"></span>!</h2>
+                <button id="logout-button" class="logout-btn">Logout</button>
+            </div>
+        </div>
+    </div>
+    <script src="/js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# Script configuration for rust-webapp
+
+[deployment]
+default_port = 8081
+docker_image_name = "rust-webapp"
+container_name = "rust-webapp-container"
+network_name = "rust-webapp-net"
+
+[development]
+frontend_port = 3000
+api_docs_path = "/api/docs"
+enable_cors = true
+
+[cleanup]
+clean_frontend = true
+clean_docker_cache = true
+clean_patterns = ["*.tmp", "*.log", ".DS_Store"]
+preserve_patterns = ["*.env", "*.key"]
+
+[remote]
+default_host = "localhost"
+default_port = 8081
+ssl_enabled = false
+
+[github]
+cli_version = "2.37.0"
+cli_paths = [
+    "C:\\Program Files\\GitHub CLI\\gh.exe",
+    "C:\\Program Files (x86)\\GitHub CLI\\gh.exe",
+    "${env:LOCALAPPDATA}\\GitHub CLI\\gh.exe"
+]
